@@ -1,0 +1,3 @@
+-keep class com.kiosklauncher.app.** { *; }
+-keepattributes *Annotation*
+-keepattributes SourceFile,LineNumberTable

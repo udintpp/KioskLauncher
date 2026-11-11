@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚙️ Pengaturan Kiosk"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Current App Section -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="APLIKASI KIOSK" android:textSize="12sp"
+            android:textColor="@color/accent" android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tv_selected_app"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="12dp"
+            android:textSize="14sp"
+            android:textColor="@color/text_primary"
+            android:background="@color/card_bg"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pick_app"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="📱 Ganti Aplikasi"
+            android:layout_marginBottom="24dp"
+            app:backgroundTint="@color/accent"
+            app:cornerRadius="8dp" />
+
+        <!-- Divider -->
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@color/card_bg" android:layout_marginBottom="16dp" />
+
+        <!-- Toggle Section -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="KONTROL MODE" android:textSize="12sp"
+            android:textColor="@color/accent" android:layout_marginBottom="12dp" />
+
+        <!-- Kiosk Enable Switch -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="@color/card_bg" android:padding="12dp"
+            android:layout_marginBottom="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="🔒 Kiosk Mode"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+            <Switch android:id="@+id/switch_kiosk"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:thumbTint="@color/accent" android:trackTint="#444" />
+        </LinearLayout>
+
+        <!-- Lock Status Bar Switch -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="@color/card_bg" android:padding="12dp"
+            android:layout_marginBottom="8dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="📶 Kunci Status Bar"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+            <Switch android:id="@+id/switch_lock_status_bar"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:thumbTint="@color/accent" android:trackTint="#444" />
+        </LinearLayout>
+
+        <!-- Lock Navigation Switch -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:background="@color/card_bg" android:padding="12dp"
+            android:layout_marginBottom="24dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="🔀 Kunci Navigasi"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+            <Switch android:id="@+id/switch_lock_navigation"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:thumbTint="@color/accent" android:trackTint="#444" />
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="@color/card_bg" android:layout_marginBottom="16dp" />
+
+        <!-- Admin PIN Section -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="PIN ADMIN" android:textSize="12sp"
+            android:textColor="@color/accent" android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="@color/accent">
+            <EditText
+                android:id="@+id/et_admin_pin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/pin_hint"
+                android:textColor="@color/text_primary"
+                android:inputType="numberPassword"
+                android:maxLength="8" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_save_pin"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="💾 Simpan PIN"
+            android:layout_marginBottom="16dp"
+            app:backgroundTint="@color/primary_light"
+            app:cornerRadius="8dp" />
+
+        <!-- Reset Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_reset"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="🗑️ Reset Semua Pengaturan"
+            android:layout_marginBottom="8dp"
+            app:backgroundTint="@color/error"
+            app:cornerRadius="8dp" />
+
+        <!-- Version Info -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Kiosk Launcher v1.0.0\nby KioskLauncher Project"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary"
+            android:gravity="center" />
+
+    </LinearLayout>
+</ScrollView>

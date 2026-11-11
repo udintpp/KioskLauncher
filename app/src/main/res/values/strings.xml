@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Kiosk Launcher</string>
+    <string name="select_app">Pilih Aplikasi Kiosk</string>
+    <string name="settings">Pengaturan</string>
+    <string name="admin_label">Kiosk Device Admin</string>
+    <string name="admin_description">Izinkan Kiosk Launcher mengelola perangkat untuk mode kiosk penuh (screen pinning, lock task)</string>
+    <string name="accessibility_service_label">Kiosk Navigation Guard</string>
+    <string name="accessibility_service_description">Memantau dan mengalihkan navigasi kembali ke aplikasi kiosk yang dipilih. Diperlukan untuk mode kiosk penuh.</string>
+    <string name="kiosk_active">Kiosk Mode Aktif</string>
+    <string name="select_app_hint">Pilih aplikasi yang akan dijadikan home screen</string>
+    <string name="pin_hint">PIN Admin (min. 4 digit)</string>
+    <string name="save">Simpan</string>
+    <string name="reset">Reset Kiosk</string>
+    <string name="enable_kiosk">Aktifkan Kiosk Mode</string>
+    <string name="lock_status_bar">Kunci Status Bar</string>
+    <string name="lock_navigation">Kunci Navigasi</string>
+    <string name="current_app">Aplikasi Saat Ini</string>
+    <string name="request_admin">Aktifkan Device Admin</string>
+    <string name="search_apps">Cari aplikasi…</string>
+    <string name="launch_app">Buka Sekarang</string>
+</resources>
