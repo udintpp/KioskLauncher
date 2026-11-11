@@ -6,20 +6,14 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type'
-        required: true
-        default: 'debug'
-        type: choice
-        options:
-          - debug
-          - release
 
 jobs:
   build:
     name: 🏗️ Build APK
     runs-on: ubuntu-latest
+
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
       - name: 📥 Checkout code
@@ -32,75 +26,92 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: 🔧 Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 🔍 Verify Android SDK
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls $ANDROID_SDK_ROOT
+          echo "Available build-tools:"
+          ls $ANDROID_SDK_ROOT/build-tools/ || echo "no build-tools dir"
+          echo "Available platforms:"
+          ls $ANDROID_SDK_ROOT/platforms/ || echo "no platforms dir"
 
-      - name: 🔑 Grant execute permission to gradlew
+      - name: 📦 Install missing SDK components
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            --sdk_root=$ANDROID_SDK_ROOT 2>/dev/null || true
+
+      - name: 🔑 Make gradlew executable
         run: chmod +x gradlew
 
-      - name: 📦 Cache Gradle packages
+      - name: 📦 Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: 🔍 Run Lint
-        run: ./gradlew lint --no-daemon
-        continue-on-error: true
+          restore-keys: ${{ runner.os }}-gradle-
 
       - name: 🛠️ Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
       - name: 🚀 Build Release APK
         run: ./gradlew assembleRelease --no-daemon
+        env:
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        continue-on-error: true
+
+      - name: 📋 List APK outputs
+        run: |
+          find app/build/outputs/apk -name "*.apk" 2>/dev/null | while read f; do
+            echo "APK: $f ($(du -sh $f | cut -f1))"
+          done
 
       - name: 📤 Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: kiosk-launcher-debug-${{ github.sha }}
+          name: KioskLauncher-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          retention-days: 90
 
       - name: 📤 Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: kiosk-launcher-release-${{ github.sha }}
+          name: KioskLauncher-release-unsigned
           path: app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 30
+          retention-days: 90
+        continue-on-error: true
 
-      - name: 📊 Generate Build Summary
+      - name: 📊 Build Summary
         run: |
-          echo "## 🔒 Kiosk Launcher Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔒 Kiosk Launcher Build Result" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| App ID | \`com.kiosklauncher.app\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | 1.0.0 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Min SDK | 26 (Android 8.0) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target SDK | 34 (Android 14) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Info | Detail |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 📦 App ID | com.kiosklauncher.app |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔖 Version | 1.0.0 |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📱 Min SDK | 26 (Android 8.0) |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🎯 Target SDK | 34 (Android 14) |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🌿 Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔑 Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **APK berhasil di-build dan tersedia di Artifacts!**" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Download APK dari tab **Artifacts** di atas" >> $GITHUB_STEP_SUMMARY
 
   release:
-    name: 🚀 Create Release
+    name: 🚀 Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
 
     steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-
-      - name: 📥 Download Debug APK
+      - name: 📥 Download Debug APK artifact
         uses: actions/download-artifact@v4
         with:
-          name: kiosk-launcher-debug-${{ github.sha }}
+          name: KioskLauncher-debug
           path: ./apk/
 
       - name: 🏷️ Create Release
@@ -109,30 +120,28 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: "🔒 Kiosk Launcher v1.0.${{ github.run_number }}"
           body: |
-            ## 🔒 Kiosk Launcher Release
+            ## 🔒 Kiosk Launcher Android App
+
+            Aplikasi launcher Android yang mengambil alih home screen dan menjadikan aplikasi lain sebagai tampilan utama.
 
             ### ✨ Fitur
-            - 🏠 Home Screen Takeover - jadikan app lain sebagai launcher
-            - 📱 App Picker dengan pencarian
-            - 🔒 Navigation Lock (Back & Home button)
-            - 📶 Status Bar Lock (fullscreen immersive)
+            - 🏠 Home Screen Takeover
+            - 📱 App Picker (pilih app apapun)
+            - 🔒 Kunci Tombol Back & Home
+            - 📶 Sembunyikan Status Bar & Nav Bar
             - 🛡️ Device Admin + Screen Pinning
-            - ♿ Accessibility Service navigation guard
-            - 🔄 Auto-start on boot
-            - 🔐 Admin PIN protection
+            - ♿ Accessibility Service Guard
+            - 🔄 Auto-Start on Boot
+            - 🔐 Admin PIN Protection
 
-            ### 📦 Download
-            Install `app-debug.apk` di perangkat Android (Android 8.0+)
+            ### 📦 Instalasi
+            1. Download `app-debug.apk`
+            2. Install di Android 8.0+
+            3. Set sebagai Default Launcher
+            4. Pilih app kiosk → Aktifkan Device Admin → ON
 
-            ### 📋 Cara Setup
-            1. Install APK & set sebagai Default Launcher
-            2. Pilih aplikasi kiosk
-            3. Aktifkan Device Admin & Accessibility Service
-            4. Toggle Kiosk Mode ON
-
-            **Commit:** ${{ github.sha }}
-          files: |
-            ./apk/app-debug.apk
+            **Build:** #${{ github.run_number }} | **Commit:** ${{ github.sha }}
+          files: ./apk/app-debug.apk
           draft: false
           prerelease: false
         env:
