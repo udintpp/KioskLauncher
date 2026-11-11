@@ -286,7 +286,7 @@ public class AppPickerActivity extends AppCompatActivity {
                         ShortcutItem.TYPE_SHORTCUT
                 ));
             }
-        } catch (SecurityException | Exception ignored) {
+        } catch (Exception ignored) {
             // Shortcut query requires launcher role or permission — silently skip
         }
     }
