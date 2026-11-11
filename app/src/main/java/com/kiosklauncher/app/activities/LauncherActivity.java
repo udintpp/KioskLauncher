@@ -107,6 +107,9 @@ public class LauncherActivity extends AppCompatActivity {
             case AppPickerActivity.ShortcutItem.TYPE_SHORTCUT:
                 launchShortcut(shortcutId);
                 break;
+            case AppPickerActivity.ShortcutItem.TYPE_DEEPLINK:
+                launchDeepLink(activity);
+                break;
             case AppPickerActivity.ShortcutItem.TYPE_ACTIVITY:
                 launchActivity(activity);
                 break;
@@ -125,6 +128,21 @@ public class LauncherActivity extends AppCompatActivity {
             startSafely(intent);
         } else {
             toastError("App tidak ditemukan: " + kioskPackage);
+        }
+    }
+
+    /** Launch a deep link / URI intent */
+    private void launchDeepLink(String uri) {
+        if (uri == null || uri.isEmpty()) { launchMainApp(); return; }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(uri));
+            intent.setPackage(kioskPackage);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                            Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            startSafely(intent);
+        } catch (Exception e) {
+            toastError("Deep link gagal: " + e.getMessage());
+            launchMainApp();
         }
     }
 

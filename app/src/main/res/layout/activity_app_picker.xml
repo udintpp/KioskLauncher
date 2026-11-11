@@ -6,7 +6,7 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <!-- Header: Title + Search -->
+    <!-- Header: Title + Breadcrumb + Search -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -15,7 +15,6 @@
         android:elevation="4dp"
         android:padding="12dp">
 
-        <!-- Title row -->
         <TextView
             android:id="@+id/tv_picker_title"
             android:layout_width="wrap_content"
@@ -24,26 +23,24 @@
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/text_primary"
-            android:layout_marginBottom="4dp" />
+            android:layout_marginBottom="2dp" />
 
-        <!-- Breadcrumb (back to apps) -->
         <TextView
             android:id="@+id/tv_breadcrumb"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="◀ Kembali ke daftar app"
+            android:text="◀ Kembali"
             android:textSize="12sp"
             android:textColor="@color/accent"
             android:visibility="gone"
-            android:paddingVertical="4dp"
-            android:layout_marginBottom="4dp" />
+            android:paddingVertical="4dp" />
 
-        <!-- Search box -->
         <EditText
             android:id="@+id/et_search"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:hint="🔍 Cari…"
+            android:layout_marginTop="6dp"
+            android:hint="🔍 Cari app / shortcut / activity…"
             android:textColor="@color/text_primary"
             android:textColorHint="@color/text_secondary"
             android:background="@drawable/bg_search"
@@ -53,14 +50,83 @@
             android:singleLine="true" />
     </LinearLayout>
 
-    <!-- List -->
+    <!-- Manual Entry Card (hanya tampil di Level 2) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/card_manual_entry"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="#1A2740"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✏️ Masukkan Manual (Activity / Deep Link URI)"
+                android:textSize="12sp"
+                android:textColor="@color/accent"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/et_manual_activity"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:hint=".ActivityName  atau  deeplink://uri"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:background="@drawable/bg_search"
+                    android:paddingHorizontal="10dp"
+                    android:imeOptions="actionDone"
+                    android:inputType="text"
+                    android:singleLine="true" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_manual_select"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:text="Pilih"
+                    android:textSize="13sp"
+                    app:backgroundTint="@color/accent"
+                    app:cornerRadius="8dp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Contoh:\n  .SettingsActivity  → nama class singkat\n  com.app.pkg/.FullActivityName  → nama lengkap\n  content://  atau  https://  → deep link URI"
+                android:textSize="10sp"
+                android:textColor="@color/text_secondary"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- App / Shortcut List -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_apps"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingTop="6dp"
+        android:paddingTop="4dp"
         android:paddingBottom="16dp" />
 
 </LinearLayout>

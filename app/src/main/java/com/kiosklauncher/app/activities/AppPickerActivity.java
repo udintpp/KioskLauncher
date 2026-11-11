@@ -33,32 +33,33 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Two-level App + Shortcut Picker:
- *  Level 1 → list semua apps
- *  Level 2 → list semua Activity/Shortcut di dalam app yang dipilih
+ * Two-level App + Shortcut Picker
+ *
+ * Level 1 → semua installed apps
+ * Level 2 → SEMUA activity (exported & non-exported) + App Shortcuts + Deep Links
+ *            + Manual Entry input
  */
 public class AppPickerActivity extends AppCompatActivity {
 
-    // ─── Mode picker ────────────────────────────────────────────────────────
     private static final int MODE_APPS      = 0;
     private static final int MODE_SHORTCUTS = 1;
 
-    private int currentMode = MODE_APPS;
+    private int     currentMode = MODE_APPS;
+    private AppInfo selectedApp = null;
 
-    private RecyclerView recyclerView;
-    private EditText searchBox;
-    private TextView tvTitle, tvBreadcrumb;
+    private RecyclerView    recyclerView;
+    private EditText        searchBox;
+    private TextView        tvTitle, tvBreadcrumb;
+    private View            cardManual;
+    private EditText        etManualActivity;
+    private View            btnManualLaunch;
 
-    // App list
-    private final List<AppInfo> allApps      = new ArrayList<>();
-    private final List<AppInfo> filteredApps = new ArrayList<>();
-
-    // Shortcut list for selected app
-    private AppInfo selectedApp;
+    private final List<AppInfo>      allApps           = new ArrayList<>();
+    private final List<AppInfo>      filteredApps      = new ArrayList<>();
     private final List<ShortcutItem> allShortcuts      = new ArrayList<>();
     private final List<ShortcutItem> filteredShortcuts = new ArrayList<>();
 
-    private AppAdapter     appAdapter;
+    private AppAdapter      appAdapter;
     private ShortcutAdapter shortcutAdapter;
 
     // ────────────────────────────────────────────────────────────────────────
@@ -68,20 +69,25 @@ public class AppPickerActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_app_picker);
 
-        tvTitle      = findViewById(R.id.tv_picker_title);
-        tvBreadcrumb = findViewById(R.id.tv_breadcrumb);
-        recyclerView = findViewById(R.id.recycler_apps);
-        searchBox    = findViewById(R.id.et_search);
+        tvTitle         = findViewById(R.id.tv_picker_title);
+        tvBreadcrumb    = findViewById(R.id.tv_breadcrumb);
+        recyclerView    = findViewById(R.id.recycler_apps);
+        searchBox       = findViewById(R.id.et_search);
+        cardManual      = findViewById(R.id.card_manual_entry);
+        etManualActivity= findViewById(R.id.et_manual_activity);
+        btnManualLaunch = findViewById(R.id.btn_manual_select);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         searchBox.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int i, int c, int a) {}
-            @Override public void onTextChanged(CharSequence s, int i, int b, int c) {
-                filterCurrent(s.toString());
-            }
+            @Override public void onTextChanged(CharSequence s, int i, int b, int c) { filterCurrent(s.toString()); }
             @Override public void afterTextChanged(Editable s) {}
         });
+
+        if (btnManualLaunch != null) {
+            btnManualLaunch.setOnClickListener(v -> selectManualActivity());
+        }
 
         loadApps();
         showAppList();
@@ -89,11 +95,8 @@ public class AppPickerActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (currentMode == MODE_SHORTCUTS) {
-            showAppList();   // kembali ke list app
-        } else {
-            super.onBackPressed();
-        }
+        if (currentMode == MODE_SHORTCUTS) showAppList();
+        else super.onBackPressed();
     }
 
     // ─────────────────────────── LEVEL 1: APPS ──────────────────────────────
@@ -104,16 +107,12 @@ public class AppPickerActivity extends AppCompatActivity {
         Intent mainIntent = new Intent(Intent.ACTION_MAIN);
         mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> ris = pm.queryIntentActivities(mainIntent, 0);
-
         for (ResolveInfo ri : ris) {
             String pkg = ri.activityInfo.packageName;
             if (pkg.equals(getPackageName())) continue;
             allApps.add(new AppInfo(
-                    ri.loadLabel(pm).toString(),
-                    pkg,
-                    ri.activityInfo.name,
-                    ri.loadIcon(pm)
-            ));
+                    ri.loadLabel(pm).toString(), pkg,
+                    ri.activityInfo.name, ri.loadIcon(pm)));
         }
         Collections.sort(allApps, (a, b) -> a.label.compareToIgnoreCase(b.label));
     }
@@ -123,14 +122,11 @@ public class AppPickerActivity extends AppCompatActivity {
         searchBox.setText("");
         tvTitle.setText("📱 Pilih Aplikasi");
         tvBreadcrumb.setVisibility(View.GONE);
+        if (cardManual != null) cardManual.setVisibility(View.GONE);
 
         filteredApps.clear();
         filteredApps.addAll(allApps);
-
-        appAdapter = new AppAdapter(filteredApps, app -> {
-            selectedApp = app;
-            showShortcutList(app);
-        });
+        appAdapter = new AppAdapter(filteredApps, app -> { selectedApp = app; showShortcutList(app); });
         recyclerView.setAdapter(appAdapter);
     }
 
@@ -139,174 +135,240 @@ public class AppPickerActivity extends AppCompatActivity {
     private void showShortcutList(AppInfo app) {
         currentMode = MODE_SHORTCUTS;
         searchBox.setText("");
-        tvTitle.setText("🔗 Pilih Halaman / Shortcut");
+        tvTitle.setText("🔗 " + app.label);
         tvBreadcrumb.setVisibility(View.VISIBLE);
-        tvBreadcrumb.setText("◀ " + app.label);
+        tvBreadcrumb.setText("◀ Kembali ke daftar app");
         tvBreadcrumb.setOnClickListener(v -> showAppList());
 
-        allShortcuts.clear();
+        // Tampilkan manual entry card
+        if (cardManual != null) {
+            cardManual.setVisibility(View.VISIBLE);
+            if (etManualActivity != null) {
+                etManualActivity.setHint("com.example.app/.SomeActivity  atau  deeplink://uri");
+            }
+        }
 
+        allShortcuts.clear();
         PackageManager pm = getPackageManager();
 
-        // ── 1. Default launcher intent (ikon utama) ─────────────────────────
-        Intent defaultIntent = pm.getLaunchIntentForPackage(app.packageName);
-        if (defaultIntent != null) {
-            allShortcuts.add(new ShortcutItem(
-                    "🏠 " + app.label + " (Halaman Utama)",
-                    app.packageName,
-                    null,         // no specific activity — use launch intent
-                    null,         // no shortcut id
-                    app.icon,
-                    ShortcutItem.TYPE_MAIN
-            ));
-        }
+        // ── 1. Halaman Utama ────────────────────────────────────────────────
+        allShortcuts.add(new ShortcutItem(
+                "🏠 Halaman Utama (default)",
+                "Buka tampilan utama aplikasi",
+                app.packageName, null, null,
+                app.icon, ShortcutItem.TYPE_MAIN, true));
 
-        // ── 2. Semua Activity yang bisa diluncurkan ─────────────────────────
-        Intent queryIntent = new Intent(Intent.ACTION_MAIN);
-        queryIntent.setPackage(app.packageName);
-        List<ResolveInfo> activities = pm.queryIntentActivities(queryIntent, 0);
-
-        for (ResolveInfo ri : activities) {
-            String actName = ri.activityInfo.name;
-            String label   = ri.loadLabel(pm).toString();
-            Drawable icon  = ri.loadIcon(pm);
-
-            // Jangan duplikat halaman utama
-            if (actName.equals(app.mainActivity)) continue;
-
-            // Buat label yang lebih mudah dibaca
-            String shortName = actName.contains(".") ?
-                    actName.substring(actName.lastIndexOf('.') + 1) : actName;
-
-            allShortcuts.add(new ShortcutItem(
-                    "📄 " + label + " (" + shortName + ")",
-                    app.packageName,
-                    actName,
-                    null,
-                    icon,
-                    ShortcutItem.TYPE_ACTIVITY
-            ));
-        }
-
-        // ── 3. App Shortcuts (Android 7.1+ / API 25+) ───────────────────────
+        // ── 2. App Shortcuts (dynamic/static/pinned) ─────────────────────────
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
             loadAppShortcuts(app, pm);
         }
 
-        // ── 4. Semua Activity publik via packageInfo ─────────────────────────
+        // ── 3. SEMUA Activity via PackageInfo (exported & non-exported) ──────
         try {
             android.content.pm.PackageInfo pkgInfo = pm.getPackageInfo(
-                    app.packageName,
-                    PackageManager.GET_ACTIVITIES
-            );
+                    app.packageName, PackageManager.GET_ACTIVITIES | PackageManager.GET_INTENT_FILTERS);
             if (pkgInfo.activities != null) {
                 for (ActivityInfo ai : pkgInfo.activities) {
-                    if (!ai.exported) continue; // skip non-exported
-                    String actName = ai.name;
+                    if (ai.name.equals(app.mainActivity)) continue;
 
-                    // Cek sudah ada di list?
-                    boolean exists = false;
-                    for (ShortcutItem s : allShortcuts) {
-                        if (actName.equals(s.activityName)) { exists = true; break; }
-                    }
-                    if (exists) continue;
-                    if (actName.equals(app.mainActivity)) continue;
+                    boolean exported = ai.exported;
+                    String shortName = ai.name.contains(".")
+                            ? ai.name.substring(ai.name.lastIndexOf('.') + 1)
+                            : ai.name;
 
-                    String shortName = actName.contains(".") ?
-                            actName.substring(actName.lastIndexOf('.') + 1) : actName;
+                    // Coba baca label
+                    String label = "";
+                    try {
+                        CharSequence lbl = ai.loadLabel(pm);
+                        label = (lbl != null && !lbl.toString().isEmpty()) ? lbl.toString() : shortName;
+                    } catch (Exception e) { label = shortName; }
 
+                    // Icon
                     Drawable icon;
-                    try { icon = pm.getActivityIcon(new ComponentName(app.packageName, actName)); }
+                    try { icon = pm.getActivityIcon(new ComponentName(app.packageName, ai.name)); }
                     catch (Exception e) { icon = app.icon; }
 
+                    // Subtitle: nama class + exported status
+                    String subtitle = ai.name;
+                    if (!exported) subtitle += "\n⚠️ Non-exported (mungkin perlu root/adb)";
+
+                    String emoji = exported ? "📄" : "🔒";
                     allShortcuts.add(new ShortcutItem(
-                            "🗂️ " + shortName,
+                            emoji + " " + label,
+                            subtitle,
                             app.packageName,
-                            actName,
+                            ai.name,
                             null,
                             icon,
-                            ShortcutItem.TYPE_ACTIVITY
-                    ));
+                            ShortcutItem.TYPE_ACTIVITY,
+                            exported));
                 }
             }
         } catch (PackageManager.NameNotFoundException ignored) {}
 
-        if (allShortcuts.isEmpty()) {
-            Toast.makeText(this, "Tidak ada shortcut/halaman ditemukan", Toast.LENGTH_SHORT).show();
-            return;
+        // ── 4. Intent-based Actions (Deep Links) ─────────────────────────────
+        loadDeepLinks(app, pm);
+
+        if (allShortcuts.size() <= 1) {
+            Toast.makeText(this,
+                    "ℹ️ App ini tidak mengekspos activity lain.\nGunakan Manual Entry di bawah.",
+                    Toast.LENGTH_LONG).show();
         }
 
         filteredShortcuts.clear();
         filteredShortcuts.addAll(allShortcuts);
-
         shortcutAdapter = new ShortcutAdapter(filteredShortcuts, this::selectShortcut);
         recyclerView.setAdapter(shortcutAdapter);
     }
 
-    /** Load dynamic & static App Shortcuts via LauncherApps */
+    /** Load App Shortcuts (require launcher role to get list; will work after set as default) */
     private void loadAppShortcuts(AppInfo app, PackageManager pm) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return;
         try {
             android.content.pm.LauncherApps launcherApps =
                     (android.content.pm.LauncherApps) getSystemService(Context.LAUNCHER_APPS_SERVICE);
             if (launcherApps == null) return;
 
-            android.content.pm.LauncherApps.ShortcutQuery query =
+            android.content.pm.LauncherApps.ShortcutQuery q =
                     new android.content.pm.LauncherApps.ShortcutQuery();
-            query.setQueryFlags(
+            q.setQueryFlags(
                     android.content.pm.LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST |
                     android.content.pm.LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC |
-                    android.content.pm.LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED
-            );
-            query.setPackage(app.packageName);
+                    android.content.pm.LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED);
+            q.setPackage(app.packageName);
 
-            android.os.UserHandle user = android.os.Process.myUserHandle();
-            List<ShortcutInfo> shortcuts = launcherApps.getShortcuts(query, user);
-
+            List<ShortcutInfo> shortcuts = launcherApps.getShortcuts(q, android.os.Process.myUserHandle());
             if (shortcuts == null) return;
+
             for (ShortcutInfo sc : shortcuts) {
                 if (!sc.isEnabled()) continue;
-                String label = sc.getLongLabel() != null ?
-                        sc.getLongLabel().toString() :
-                        (sc.getShortLabel() != null ? sc.getShortLabel().toString() : sc.getId());
-
+                String lbl = sc.getLongLabel() != null ? sc.getLongLabel().toString()
+                        : (sc.getShortLabel() != null ? sc.getShortLabel().toString() : sc.getId());
                 Drawable icon;
-                try {
-                    icon = launcherApps.getShortcutIconDrawable(sc,
-                            getResources().getDisplayMetrics().densityDpi);
-                } catch (Exception e) { icon = app.icon; }
+                try { icon = launcherApps.getShortcutIconDrawable(sc,
+                        getResources().getDisplayMetrics().densityDpi); }
+                catch (Exception e) { icon = app.icon; }
                 if (icon == null) icon = app.icon;
 
                 allShortcuts.add(new ShortcutItem(
-                        "⚡ " + label,
-                        app.packageName,
-                        null,
-                        sc.getId(),
-                        icon,
-                        ShortcutItem.TYPE_SHORTCUT
-                ));
+                        "⚡ " + lbl,
+                        "App Shortcut ID: " + sc.getId(),
+                        app.packageName, null, sc.getId(),
+                        icon, ShortcutItem.TYPE_SHORTCUT, true));
             }
-        } catch (Exception ignored) {
-            // Shortcut query requires launcher role or permission — silently skip
+        } catch (Exception e) {
+            // Jika belum jadi default launcher, tambahkan info placeholder
+            allShortcuts.add(new ShortcutItem(
+                    "ℹ️ App Shortcuts belum tersedia",
+                    "Set Kiosk Launcher sebagai Default Launcher dulu\nlalu buka kembali untuk melihat shortcuts",
+                    app.packageName, null, null,
+                    app.icon, ShortcutItem.TYPE_INFO, false));
         }
+    }
+
+    /** Try to find deep link / URI intents for this package */
+    private void loadDeepLinks(AppInfo app, PackageManager pm) {
+        try {
+            // Query VIEW intent untuk mencari deep link handlers
+            Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+            viewIntent.setPackage(app.packageName);
+            List<ResolveInfo> deepLinks = pm.queryIntentActivities(viewIntent, 0);
+            for (ResolveInfo ri : deepLinks) {
+                String actName = ri.activityInfo.name;
+                boolean alreadyAdded = false;
+                for (ShortcutItem s : allShortcuts) {
+                    if (actName.equals(s.activityName)) { alreadyAdded = true; break; }
+                }
+                if (alreadyAdded) continue;
+                if (actName.equals(app.mainActivity)) continue;
+
+                String label = ri.loadLabel(pm).toString();
+                allShortcuts.add(new ShortcutItem(
+                        "🔗 " + label + " (Deep Link)",
+                        actName + "\nMenerima ACTION_VIEW / URI",
+                        app.packageName, actName, null,
+                        ri.loadIcon(pm), ShortcutItem.TYPE_ACTIVITY, true));
+            }
+
+            // Query SEND intent
+            Intent sendIntent = new Intent(Intent.ACTION_SEND);
+            sendIntent.setPackage(app.packageName);
+            List<ResolveInfo> sendLinks = pm.queryIntentActivities(sendIntent, 0);
+            for (ResolveInfo ri : sendLinks) {
+                String actName = ri.activityInfo.name;
+                boolean alreadyAdded = false;
+                for (ShortcutItem s : allShortcuts) {
+                    if (actName.equals(s.activityName)) { alreadyAdded = true; break; }
+                }
+                if (alreadyAdded) continue;
+                String label = ri.loadLabel(pm).toString();
+                allShortcuts.add(new ShortcutItem(
+                        "📤 " + label + " (Share Target)",
+                        actName,
+                        app.packageName, actName, null,
+                        ri.loadIcon(pm), ShortcutItem.TYPE_ACTIVITY, true));
+            }
+        } catch (Exception ignored) {}
     }
 
     // ─────────────────────────── SELECT ─────────────────────────────────────
 
     private void selectShortcut(ShortcutItem item) {
+        if (item.type == ShortcutItem.TYPE_INFO) {
+            Toast.makeText(this,
+                    "Set Kiosk Launcher sebagai Default Launcher dulu!", Toast.LENGTH_LONG).show();
+            return;
+        }
+        saveAndFinish(item);
+    }
+
+    private void selectManualActivity() {
+        if (selectedApp == null || etManualActivity == null) return;
+        String input = etManualActivity.getText().toString().trim();
+        if (input.isEmpty()) {
+            Toast.makeText(this, "Masukkan nama activity atau URI!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Tentukan tipe: jika ada "://" → deep link / URI, selain itu → activity name
+        int type;
+        String activityName = null;
+        String shortcutId   = null;
+
+        if (input.contains("://")) {
+            // Deep link URI → simpan sebagai activity name, nanti launch via Intent.ACTION_VIEW
+            activityName = input;
+            type = ShortcutItem.TYPE_DEEPLINK;
+        } else {
+            // Activity class name — tambah package jika belum ada
+            if (!input.contains(".")) {
+                activityName = selectedApp.packageName + "." + input;
+            } else if (input.startsWith(".")) {
+                activityName = selectedApp.packageName + input;
+            } else {
+                activityName = input;
+            }
+            type = ShortcutItem.TYPE_ACTIVITY;
+        }
+
+        ShortcutItem item = new ShortcutItem(
+                "✏️ " + input, "Manual Entry",
+                selectedApp.packageName, activityName, shortcutId,
+                selectedApp.icon, type, true);
+        saveAndFinish(item);
+    }
+
+    private void saveAndFinish(ShortcutItem item) {
         SharedPreferences prefs = getSharedPreferences(
                 LauncherActivity.PREFS_NAME, Context.MODE_PRIVATE);
-
         prefs.edit()
                 .putString(LauncherActivity.KEY_KIOSK_APP,         item.packageName)
-                .putString(LauncherActivity.KEY_KIOSK_ACTIVITY,    item.activityName != null ? item.activityName : "")
-                .putString(LauncherActivity.KEY_KIOSK_SHORTCUT_ID, item.shortcutId   != null ? item.shortcutId   : "")
+                .putString(LauncherActivity.KEY_KIOSK_ACTIVITY,    item.activityName  != null ? item.activityName  : "")
+                .putString(LauncherActivity.KEY_KIOSK_SHORTCUT_ID, item.shortcutId    != null ? item.shortcutId    : "")
                 .putInt   (LauncherActivity.KEY_KIOSK_TYPE,        item.type)
                 .putBoolean(LauncherActivity.KEY_KIOSK_ENABLED,    true)
                 .apply();
 
-        String msg = "✅ Dipilih: " + item.label;
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "✅ Dipilih: " + item.label, Toast.LENGTH_SHORT).show();
         finish();
     }
 
@@ -316,17 +378,15 @@ public class AppPickerActivity extends AppCompatActivity {
         String q = query.toLowerCase().trim();
         if (currentMode == MODE_APPS) {
             filteredApps.clear();
-            for (AppInfo a : allApps) {
+            for (AppInfo a : allApps)
                 if (a.label.toLowerCase().contains(q) || a.packageName.toLowerCase().contains(q))
                     filteredApps.add(a);
-            }
             if (appAdapter != null) appAdapter.notifyDataSetChanged();
         } else {
             filteredShortcuts.clear();
-            for (ShortcutItem s : allShortcuts) {
-                if (s.label.toLowerCase().contains(q) || s.packageName.toLowerCase().contains(q))
+            for (ShortcutItem s : allShortcuts)
+                if (s.label.toLowerCase().contains(q) || s.subtitle.toLowerCase().contains(q))
                     filteredShortcuts.add(s);
-            }
             if (shortcutAdapter != null) shortcutAdapter.notifyDataSetChanged();
         }
     }
@@ -334,11 +394,10 @@ public class AppPickerActivity extends AppCompatActivity {
     // ══════════════════════════ DATA CLASSES ════════════════════════════════
 
     public static class AppInfo {
-        public String   label, packageName, mainActivity;
+        public String label, packageName, mainActivity;
         public Drawable icon;
-        AppInfo(String label, String packageName, String mainActivity, Drawable icon) {
-            this.label = label; this.packageName = packageName;
-            this.mainActivity = mainActivity; this.icon = icon;
+        AppInfo(String l, String p, String m, Drawable i) {
+            label=l; packageName=p; mainActivity=m; icon=i;
         }
     }
 
@@ -346,29 +405,30 @@ public class AppPickerActivity extends AppCompatActivity {
         public static final int TYPE_MAIN     = 0;
         public static final int TYPE_ACTIVITY = 1;
         public static final int TYPE_SHORTCUT = 2;
+        public static final int TYPE_INFO     = 3;
+        public static final int TYPE_DEEPLINK = 4;
 
-        public String   label, packageName, activityName, shortcutId;
+        public String   label, subtitle, packageName, activityName, shortcutId;
         public Drawable icon;
         public int      type;
+        public boolean  isLaunchable;
 
-        ShortcutItem(String label, String packageName, String activityName,
-                     String shortcutId, Drawable icon, int type) {
-            this.label = label; this.packageName = packageName;
-            this.activityName = activityName; this.shortcutId = shortcutId;
-            this.icon = icon; this.type = type;
+        ShortcutItem(String label, String subtitle, String pkg,
+                     String act, String scId, Drawable icon, int type, boolean launchable) {
+            this.label=label; this.subtitle=subtitle; this.packageName=pkg;
+            this.activityName=act; this.shortcutId=scId;
+            this.icon=icon; this.type=type; this.isLaunchable=launchable;
         }
     }
 
     // ══════════════════════════ ADAPTERS ════════════════════════════════════
 
     static class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
-        private final List<AppInfo>  list;
-        private final OnClick        onClick;
         interface OnClick { void on(AppInfo a); }
+        private final List<AppInfo> list;
+        private final OnClick onClick;
+        AppAdapter(List<AppInfo> l, OnClick c) { list=l; onClick=c; }
 
-        AppAdapter(List<AppInfo> list, OnClick onClick) {
-            this.list = list; this.onClick = onClick;
-        }
         @NonNull @Override
         public VH onCreateViewHolder(@NonNull ViewGroup p, int t) {
             return new VH(LayoutInflater.from(p.getContext()).inflate(R.layout.item_app, p, false));
@@ -380,30 +440,27 @@ public class AppPickerActivity extends AppCompatActivity {
             h.tvSub.setText(a.packageName);
             h.icon.setImageDrawable(a.icon);
             h.tvArrow.setText("▶");
+            h.tvArrow.setAlpha(1f);
+            h.itemView.setAlpha(1f);
             h.itemView.setOnClickListener(v -> onClick.on(a));
         }
         @Override public int getItemCount() { return list.size(); }
-
         static class VH extends RecyclerView.ViewHolder {
             ImageView icon; TextView tvName, tvSub, tvArrow;
-            VH(View v) {
-                super(v);
-                icon   = v.findViewById(R.id.iv_app_icon);
-                tvName = v.findViewById(R.id.tv_app_name);
-                tvSub  = v.findViewById(R.id.tv_app_pkg);
-                tvArrow= v.findViewById(R.id.tv_app_arrow);
-            }
+            VH(View v) { super(v);
+                icon=v.findViewById(R.id.iv_app_icon);
+                tvName=v.findViewById(R.id.tv_app_name);
+                tvSub=v.findViewById(R.id.tv_app_pkg);
+                tvArrow=v.findViewById(R.id.tv_app_arrow); }
         }
     }
 
     static class ShortcutAdapter extends RecyclerView.Adapter<ShortcutAdapter.VH> {
-        private final List<ShortcutItem> list;
-        private final OnClick            onClick;
         interface OnClick { void on(ShortcutItem s); }
+        private final List<ShortcutItem> list;
+        private final OnClick onClick;
+        ShortcutAdapter(List<ShortcutItem> l, OnClick c) { list=l; onClick=c; }
 
-        ShortcutAdapter(List<ShortcutItem> list, OnClick onClick) {
-            this.list = list; this.onClick = onClick;
-        }
         @NonNull @Override
         public VH onCreateViewHolder(@NonNull ViewGroup p, int t) {
             return new VH(LayoutInflater.from(p.getContext()).inflate(R.layout.item_app, p, false));
@@ -412,29 +469,30 @@ public class AppPickerActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull VH h, int pos) {
             ShortcutItem s = list.get(pos);
             h.tvName.setText(s.label);
-            h.tvSub.setText(s.packageName +
-                    (s.activityName != null ? "\n" + s.activityName : "") +
-                    (s.shortcutId   != null ? "\nID: " + s.shortcutId : ""));
+            h.tvSub.setText(s.subtitle);
             h.icon.setImageDrawable(s.icon);
             // Badge by type
             switch (s.type) {
                 case ShortcutItem.TYPE_MAIN:     h.tvArrow.setText("🏠"); break;
                 case ShortcutItem.TYPE_SHORTCUT: h.tvArrow.setText("⚡"); break;
-                default:                         h.tvArrow.setText("✓");  break;
+                case ShortcutItem.TYPE_DEEPLINK: h.tvArrow.setText("🔗"); break;
+                case ShortcutItem.TYPE_INFO:     h.tvArrow.setText("ℹ️"); break;
+                default:
+                    h.tvArrow.setText(s.isLaunchable ? "✓" : "🔒");
+                    break;
             }
+            // Dim non-launchable items
+            h.itemView.setAlpha(s.isLaunchable ? 1f : 0.6f);
             h.itemView.setOnClickListener(v -> onClick.on(s));
         }
         @Override public int getItemCount() { return list.size(); }
-
         static class VH extends RecyclerView.ViewHolder {
             ImageView icon; TextView tvName, tvSub, tvArrow;
-            VH(View v) {
-                super(v);
-                icon   = v.findViewById(R.id.iv_app_icon);
-                tvName = v.findViewById(R.id.tv_app_name);
-                tvSub  = v.findViewById(R.id.tv_app_pkg);
-                tvArrow= v.findViewById(R.id.tv_app_arrow);
-            }
+            VH(View v) { super(v);
+                icon=v.findViewById(R.id.iv_app_icon);
+                tvName=v.findViewById(R.id.tv_app_name);
+                tvSub=v.findViewById(R.id.tv_app_pkg);
+                tvArrow=v.findViewById(R.id.tv_app_arrow); }
         }
     }
 }
